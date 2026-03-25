@@ -1,6 +1,7 @@
 package com.kavia.noteorganizer
 
 import android.app.Application
+import android.util.Log
 import com.kavia.noteorganizer.data.local.AppDatabase
 import com.kavia.noteorganizer.data.remote.InMemoryNotesApi
 import com.kavia.noteorganizer.data.repository.DefaultNotesRepository
@@ -22,7 +23,18 @@ class App : Application() {
             api = api,
         )
 
-        // Schedule periodic background sync (network constrained).
-        NotesSyncScheduler.schedulePeriodic(this)
+        /**
+         * WorkManager should be safe to call here in typical setups, but some emulator/device
+         * environments can throw during WorkManager initialization/scheduling (e.g. missing
+         * initializer, bad provider state, corrupted app state after restore).
+         *
+         * App must still be able to launch even if background scheduling is unavailable.
+         */
+        runCatching {
+            // Schedule periodic background sync (network constrained).
+            NotesSyncScheduler.schedulePeriodic(this)
+        }.onFailure { t ->
+            Log.e("App", "Failed to schedule periodic sync; continuing without it.", t)
+        }
     }
 }
