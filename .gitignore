@@ -154,6 +154,13 @@ venv.bak/
 # mkdocs documentation
 /site
 
+# Android / Gradle
+**/.gradle/
+**/build/
+**/local.properties
+**/*.iml
+**/.idea/
+
 # mypy
 .mypy_cache/
 .dmypy.json
