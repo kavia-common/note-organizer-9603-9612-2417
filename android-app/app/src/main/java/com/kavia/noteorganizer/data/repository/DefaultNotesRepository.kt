@@ -1,6 +1,7 @@
 package com.kavia.noteorganizer.data.repository
 
 import com.kavia.noteorganizer.data.local.NoteDao
+import com.kavia.noteorganizer.data.local.NoteEntity
 import com.kavia.noteorganizer.data.local.SyncStateDao
 import com.kavia.noteorganizer.data.local.SyncStateEntity
 import com.kavia.noteorganizer.data.local.toDomain
@@ -24,8 +25,12 @@ class DefaultNotesRepository(
         return if (q.isEmpty()) {
             noteDao.observeAll().map { list -> list.map { it.toDomain() } }
         } else {
-            // Escape % and _ then use LIKE with surrounding wildcards.
-            val escaped = q.replace("%", "\\%").replace("_", "\\_")
+            // Escape LIKE wildcards for safe substring search.
+            // DAO uses: LIKE :q ESCAPE '\', so we escape: \, %, _
+            val escaped = q
+                .replace("\\", "\\\\")
+                .replace("%", "\\%")
+                .replace("_", "\\_")
             val like = "%$escaped%"
             noteDao.observeSearch(like).map { list -> list.map { it.toDomain() } }
         }
@@ -52,8 +57,12 @@ class DefaultNotesRepository(
 
     override suspend fun updateNote(id: String, title: String, content: String) {
         val now = System.currentTimeMillis()
-        val current = noteDao.getDirty().firstOrNull { it.id == id } // cheap fallback
-        val createdAt = current?.createdAt ?: now
+
+        // Preserve the original createdAt when editing.
+        val existing = noteDao.getById(id)
+        val createdAt = existing?.createdAt ?: now
+
+        // Updating a deleted note acts as a restore (undelete) locally.
         val note = Note(
             id = id,
             title = title,
@@ -67,49 +76,48 @@ class DefaultNotesRepository(
     }
 
     override suspend fun deleteNote(id: String) {
+        // Tombstone delete: required for sync propagation.
         val now = System.currentTimeMillis()
         noteDao.markDeleted(id, updatedAt = now)
     }
 
     override suspend fun syncNow() {
-        // Upload local dirty notes (including tombstones).
-        val dirty = noteDao.getDirty().map { it.toDomain() }
-        if (dirty.isNotEmpty()) {
-            api.pushNotes(dirty)
-            noteDao.markClean(dirty.map { it.id })
+        // 1) Upload local dirty notes (including tombstones).
+        // Mark clean only after the remote accepted the push.
+        val dirtyLocal = noteDao.getDirty().map { it.toDomain() }
+        if (dirtyLocal.isNotEmpty()) {
+            api.pushNotes(dirtyLocal)
+            noteDao.markClean(dirtyLocal.map { it.id })
         }
 
-        // Download remote changes since last sync marker.
+        // 2) Download remote changes since last sync marker.
         val lastSyncAt = syncStateDao.getLastSyncAt(syncKey) ?: 0L
         val remote = api.fetchNotesUpdatedSince(lastSyncAt)
 
-        // Merge remote into local (LWW based on updatedAt).
-        // Room is the source of truth; we only overwrite when remote is newer.
-        val mergedEntities = remote.map { remoteNote ->
-            val remoteEntity = remoteNote.copy(dirty = false).toEntity()
-            remoteEntity
+        // 3) Merge remote into local with LWW (updatedAt).
+        // Only overwrite local when remote is strictly newer; otherwise keep local (and its dirty flag).
+        val toUpsert: MutableList<NoteEntity> = mutableListOf()
+        var maxRemoteUpdatedAt = lastSyncAt
+
+        for (remoteNote in remote) {
+            maxRemoteUpdatedAt = maxOf(maxRemoteUpdatedAt, remoteNote.updatedAt)
+
+            val local = noteDao.getById(remoteNote.id)
+            val shouldApplyRemote = local == null || remoteNote.updatedAt > local.updatedAt
+
+            if (shouldApplyRemote) {
+                toUpsert += remoteNote.copy(dirty = false).toEntity()
+            }
         }
 
-        // Apply naive merge by upserting remote entries; then resolve conflicts:
-        // We can't efficiently compare with all local notes without extra queries; for this skeleton,
-        // we rely on the invariant: local writes bump updatedAt. Overwrite is safe if remote is newer.
-        // We'll handle conflicts by an extra read per note.
-        val toApply = mutableListOf<com.kavia.noteorganizer.data.local.NoteEntity>()
-        for (remoteEntity in mergedEntities) {
-            val local = noteDao.observeById(remoteEntity.id) // Flow; not usable here
-            // Instead use dirty list / last synced metadata isn't enough; for skeleton simplicity,
-            // always upsert remote; then if local is newer, local will re-dirty and win on next upload.
-            toApply.add(remoteEntity)
+        if (toUpsert.isNotEmpty()) {
+            noteDao.upsertInTransaction(toUpsert)
         }
 
-        if (toApply.isNotEmpty()) {
-            noteDao.upsertInTransaction(toApply)
-        }
+        // 4) Advance sync marker. Even if remote returned nothing, this keeps lastSyncAt stable.
+        syncStateDao.upsert(SyncStateEntity(key = syncKey, lastSyncAt = maxRemoteUpdatedAt))
 
-        val newLastSyncAt = maxOf(lastSyncAt, remote.maxOfOrNull { it.updatedAt } ?: lastSyncAt)
-        syncStateDao.upsert(SyncStateEntity(key = syncKey, lastSyncAt = newLastSyncAt))
-
-        // Optional cleanup: purge deleted notes locally (safe in client-only mock).
+        // 5) Optional local cleanup.
         noteDao.purgeDeleted()
     }
 }

@@ -12,14 +12,28 @@ interface NoteDao {
     @Query("SELECT * FROM notes WHERE deleted = 0 ORDER BY updatedAt DESC")
     fun observeAll(): Flow<List<NoteEntity>>
 
+    /**
+     * Simple LIKE-based search across title and content.
+     *
+     * IMPORTANT: Repository must escape wildcard characters in the user query and pass it
+     * surrounded with %...%. We also specify ESCAPE '\\' so the repository can escape %/_ safely.
+     */
     @Query(
-        "SELECT * FROM notes WHERE deleted = 0 AND (title LIKE :q OR content LIKE :q) " +
+        "SELECT * FROM notes " +
+            "WHERE deleted = 0 AND (title LIKE :q ESCAPE '\\' OR content LIKE :q ESCAPE '\\') " +
             "ORDER BY updatedAt DESC",
     )
     fun observeSearch(q: String): Flow<List<NoteEntity>>
 
     @Query("SELECT * FROM notes WHERE id = :id LIMIT 1")
     fun observeById(id: String): Flow<NoteEntity?>
+
+    /**
+     * Non-reactive lookup used by repository for correct update semantics (preserving createdAt,
+     * and merging based on updatedAt).
+     */
+    @Query("SELECT * FROM notes WHERE id = :id LIMIT 1")
+    suspend fun getById(id: String): NoteEntity?
 
     @Query("SELECT * FROM notes WHERE dirty = 1")
     suspend fun getDirty(): List<NoteEntity>

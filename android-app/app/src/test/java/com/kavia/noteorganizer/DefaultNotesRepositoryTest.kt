@@ -7,10 +7,12 @@ import app.cash.turbine.test
 import com.kavia.noteorganizer.data.local.AppDatabase
 import com.kavia.noteorganizer.data.remote.InMemoryNotesApi
 import com.kavia.noteorganizer.data.repository.DefaultNotesRepository
+import com.kavia.noteorganizer.domain.Note
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -83,7 +85,7 @@ class DefaultNotesRepositoryTest {
         // First sync uploads.
         repo.syncNow()
 
-        // Create a new repo/db still same; local should still have note.
+        // Local should still have note.
         repo.observeNotes(query = "").test {
             val list = awaitItem()
             assertEquals(1, list.size)
@@ -105,7 +107,7 @@ class DefaultNotesRepositoryTest {
         val remoteNow = System.currentTimeMillis() + 10_000
         api.pushNotes(
             listOf(
-                com.kavia.noteorganizer.domain.Note(
+                Note(
                     id = id,
                     title = "remote",
                     content = "v2",
@@ -123,6 +125,59 @@ class DefaultNotesRepositoryTest {
             val list = awaitItem()
             assertEquals(1, list.size)
             assertEquals("remote", list[0].title)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun update_preserves_createdAt_and_marks_dirty() = runTest {
+        val id = repo.createNote("t", "c1")
+
+        val before = repo.observeNote(id)
+        var createdAt1 = 0L
+        var updatedAt1 = 0L
+        before.test {
+            val first = awaitItem()
+            requireNotNull(first)
+            createdAt1 = first.createdAt
+            updatedAt1 = first.updatedAt
+            cancelAndIgnoreRemainingEvents()
+        }
+
+        repo.updateNote(id, "t2", "c2")
+
+        repo.observeNote(id).test {
+            val updated = awaitItem()
+            requireNotNull(updated)
+            assertEquals(createdAt1, updated.createdAt)
+            assertNotEquals(updatedAt1, updated.updatedAt)
+            assertEquals("t2", updated.title)
+            assertTrue(updated.dirty)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun search_is_reactive_and_filters_by_title_or_content() = runTest {
+        val id1 = repo.createNote("Shopping list", "milk eggs")
+        val id2 = repo.createNote("Work", "project plan")
+
+        // Search should initially return matching notes.
+        repo.observeNotes(query = "milk").test {
+            val list = awaitItem()
+            assertEquals(listOf(id1), list.map { it.id })
+            cancelAndIgnoreRemainingEvents()
+        }
+
+        // Reactivity: after updating note2 to match, search flow should emit updated list.
+        repo.observeNotes(query = "plan").test {
+            val initial = awaitItem()
+            assertEquals(listOf(id2), initial.map { it.id })
+
+            repo.updateNote(id1, "Shopping list", "milk and plan")
+            val next = awaitItem()
+            assertEquals(setOf(id1, id2), next.map { it.id }.toSet())
+
             cancelAndIgnoreRemainingEvents()
         }
     }
