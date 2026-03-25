@@ -4,6 +4,7 @@ import android.app.Application
 import com.kavia.noteorganizer.data.local.AppDatabase
 import com.kavia.noteorganizer.data.remote.InMemoryNotesApi
 import com.kavia.noteorganizer.data.repository.DefaultNotesRepository
+import com.kavia.noteorganizer.data.sync.NotesSyncScheduler
 
 class App : Application() {
     lateinit var repository: DefaultNotesRepository
@@ -20,5 +21,8 @@ class App : Application() {
             syncStateDao = db.syncStateDao(),
             api = api,
         )
+
+        // Schedule periodic background sync (network constrained).
+        NotesSyncScheduler.schedulePeriodic(this)
     }
 }

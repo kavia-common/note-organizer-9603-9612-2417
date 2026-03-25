@@ -13,4 +13,8 @@
     <string name="sync">Sync</string>
     <string name="empty_state">No notes yet. Tap + to create one.</string>
     <string name="meta_placeholder"> </string>
+
+    <string name="sync_status_running">Syncing…</string>
+    <string name="sync_status_success">Last synced: %1$s</string>
+    <string name="sync_status_error">Sync failed: %1$s</string>
 </resources>

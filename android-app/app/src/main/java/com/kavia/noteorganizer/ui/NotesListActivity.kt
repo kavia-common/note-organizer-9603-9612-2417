@@ -14,10 +14,13 @@ import androidx.lifecycle.repeatOnLifecycle
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.kavia.noteorganizer.App
 import com.kavia.noteorganizer.R
+import com.kavia.noteorganizer.data.sync.SyncStatus
 import com.kavia.noteorganizer.databinding.ActivityNotesListBinding
 import com.kavia.noteorganizer.presentation.NotesListViewModel
 import com.kavia.noteorganizer.presentation.ViewModelFactories
 import kotlinx.coroutines.launch
+import java.text.DateFormat
+import java.util.Date
 
 class NotesListActivity : AppCompatActivity() {
 
@@ -68,6 +71,17 @@ class NotesListActivity : AppCompatActivity() {
                     val isEmpty = state.notes.isEmpty()
                     binding.emptyState.visibility = if (isEmpty) android.view.View.VISIBLE else android.view.View.GONE
                     binding.recycler.visibility = if (isEmpty) android.view.View.GONE else android.view.View.VISIBLE
+
+                    // Show sync status as toolbar subtitle.
+                    binding.toolbar.subtitle = when (val s = state.syncStatus) {
+                        is SyncStatus.Idle -> ""
+                        is SyncStatus.Running -> getString(R.string.sync_status_running)
+                        is SyncStatus.Success -> getString(
+                            R.string.sync_status_success,
+                            DateFormat.getDateTimeInstance().format(Date(s.finishedAtEpochMillis)),
+                        )
+                        is SyncStatus.Error -> getString(R.string.sync_status_error, s.message)
+                    }
                 }
             }
         }
@@ -81,7 +95,7 @@ class NotesListActivity : AppCompatActivity() {
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
         return when (item.itemId) {
             R.id.action_sync -> {
-                viewModel.syncNow()
+                viewModel.syncNow(this)
                 true
             }
             else -> super.onOptionsItemSelected(item)
