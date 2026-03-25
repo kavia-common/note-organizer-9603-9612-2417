@@ -6,9 +6,9 @@ import android.text.Editable
 import android.text.TextWatcher
 import android.view.Menu
 import android.view.MenuItem
-import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -27,8 +27,11 @@ class NotesListActivity : AppCompatActivity() {
     private lateinit var binding: ActivityNotesListBinding
     private lateinit var adapter: NotesAdapter
 
-    private val viewModel: NotesListViewModel by viewModels {
-        ViewModelFactories.notesList((application as App).repository)
+    private val viewModel: NotesListViewModel by lazy {
+        ViewModelProvider(
+            this,
+            ViewModelFactories.notesList((application as App).repository),
+        )[NotesListViewModel::class.java]
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {

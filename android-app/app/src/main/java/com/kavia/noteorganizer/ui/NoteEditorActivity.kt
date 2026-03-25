@@ -2,9 +2,9 @@ package com.kavia.noteorganizer.ui
 
 import android.os.Bundle
 import android.view.View
-import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import com.kavia.noteorganizer.App
@@ -23,11 +23,14 @@ class NoteEditorActivity : AppCompatActivity() {
 
     private val noteId: String? by lazy { intent.getStringExtra(EXTRA_NOTE_ID) }
 
-    private val viewModel: NoteEditorViewModel by viewModels {
-        ViewModelFactories.noteEditor(
-            repository = (application as App).repository,
-            noteId = noteId,
-        )
+    private val viewModel: NoteEditorViewModel by lazy {
+        ViewModelProvider(
+            this,
+            ViewModelFactories.noteEditor(
+                repository = (application as App).repository,
+                noteId = noteId,
+            ),
+        )[NoteEditorViewModel::class.java]
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
