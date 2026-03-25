@@ -17,7 +17,15 @@ This repository contains a native Android (Kotlin) offline-first notes app skele
 
 From `note-organizer-9603-9612-2417/android-app`:
 
-- Build: `./gradlew :app:assembleDebug`
+### Build APKs (skip tests)
+- Debug APK: `./gradlew :app:assembleDebug -x test --no-daemon`
+- Release APK (unsigned by default): `./gradlew :app:assembleRelease -x test --no-daemon`
+
+### APK output locations
+- Debug: `android-app/app/build/outputs/apk/debug/app-debug.apk`
+- Release: `android-app/app/build/outputs/apk/release/app-release.apk`
+
+### (Optional) Run tests later
 - Unit tests: `./gradlew :app:testDebugUnitTest`
 - Instrumented tests (if emulator/device available): `./gradlew :app:connectedDebugAndroidTest`
 

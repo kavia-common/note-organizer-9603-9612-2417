@@ -1,7 +1,9 @@
 plugins {
     id("com.android.application") version "8.7.0"
     id("org.jetbrains.kotlin.android") version "1.9.24"
-    id("kotlin-kapt")
+    // KAPT must be applied via the Kotlin plugin id; using "kotlin-kapt" can fail to resolve
+    // when plugins are versioned individually.
+    id("org.jetbrains.kotlin.kapt") version "1.9.24"
 }
 
 android {
