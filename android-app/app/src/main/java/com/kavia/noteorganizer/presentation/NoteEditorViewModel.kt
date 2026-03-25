@@ -6,6 +6,7 @@ import com.kavia.noteorganizer.data.repository.NotesRepository
 import com.kavia.noteorganizer.domain.Note
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -21,21 +22,29 @@ class NoteEditorViewModel(
     val uiState: StateFlow<NoteEditorUiState> =
         if (noteId == null) {
             kotlinx.coroutines.flow.flowOf(NoteEditorUiState(note = null))
-                .stateIn(viewModelScope, SharingStarted.Eagerly, NoteEditorUiState())
+                .stateIn(viewModelScope, SharingStarted.Eagerly, NoteEditorUiState(note = null))
         } else {
             repository.observeNote(noteId)
-                .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
-                .let { noteFlow ->
-                    kotlinx.coroutines.flow.map(noteFlow) { note -> NoteEditorUiState(note = note) }
-                        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), NoteEditorUiState())
-                }
+                .map { note -> NoteEditorUiState(note = note) }
+                .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), NoteEditorUiState(note = null))
+        }
 
     fun save(title: String, content: String, onDone: () -> Unit) {
         viewModelScope.launch {
+            val normalizedTitle = title.trim()
+            val normalizedContent = content.trim()
+
             if (noteId == null) {
-                repository.createNote(title, content)
+                repository.createNote(
+                    title = normalizedTitle,
+                    content = normalizedContent,
+                )
             } else {
-                repository.updateNote(noteId, title, content)
+                repository.updateNote(
+                    id = noteId,
+                    title = normalizedTitle,
+                    content = normalizedContent,
+                )
             }
             onDone()
         }

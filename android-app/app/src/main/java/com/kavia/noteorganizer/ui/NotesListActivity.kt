@@ -2,19 +2,31 @@ package com.kavia.noteorganizer.ui
 
 import android.content.Intent
 import android.os.Bundle
+import android.text.Editable
+import android.text.TextWatcher
+import android.view.Menu
+import android.view.MenuItem
+import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.kavia.noteorganizer.App
+import com.kavia.noteorganizer.R
 import com.kavia.noteorganizer.databinding.ActivityNotesListBinding
+import com.kavia.noteorganizer.presentation.NotesListViewModel
+import com.kavia.noteorganizer.presentation.ViewModelFactories
 import kotlinx.coroutines.launch
 
 class NotesListActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityNotesListBinding
     private lateinit var adapter: NotesAdapter
+
+    private val viewModel: NotesListViewModel by viewModels {
+        ViewModelFactories.notesList((application as App).repository)
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -25,7 +37,8 @@ class NotesListActivity : AppCompatActivity() {
 
         adapter = NotesAdapter { note ->
             startActivity(
-                Intent(this, NoteEditorActivity::class.java).putExtra(NoteEditorActivity.EXTRA_NOTE_ID, note.id),
+                Intent(this, NoteEditorActivity::class.java)
+                    .putExtra(NoteEditorActivity.EXTRA_NOTE_ID, note.id),
             )
         }
 
@@ -36,15 +49,42 @@ class NotesListActivity : AppCompatActivity() {
             startActivity(Intent(this, NoteEditorActivity::class.java))
         }
 
-        // Simple collection directly from repository (skeleton). In a full app, use proper ViewModelProviders.
-        val repo = (application as App).repository
+        // Search -> ViewModel query.
+        binding.searchInput.addTextChangedListener(
+            object : TextWatcher {
+                override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
+                override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) = Unit
+                override fun afterTextChanged(s: Editable?) {
+                    viewModel.setQuery(s?.toString().orEmpty())
+                }
+            },
+        )
 
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
-                repo.observeNotes(query = "").collect { notes ->
-                    adapter.submitList(notes)
+                viewModel.uiState.collect { state ->
+                    adapter.submitList(state.notes)
+
+                    val isEmpty = state.notes.isEmpty()
+                    binding.emptyState.visibility = if (isEmpty) android.view.View.VISIBLE else android.view.View.GONE
+                    binding.recycler.visibility = if (isEmpty) android.view.View.GONE else android.view.View.VISIBLE
                 }
             }
+        }
+    }
+
+    override fun onCreateOptionsMenu(menu: Menu): Boolean {
+        menuInflater.inflate(R.menu.menu_notes_list, menu)
+        return true
+    }
+
+    override fun onOptionsItemSelected(item: MenuItem): Boolean {
+        return when (item.itemId) {
+            R.id.action_sync -> {
+                viewModel.syncNow()
+                true
+            }
+            else -> super.onOptionsItemSelected(item)
         }
     }
 }
