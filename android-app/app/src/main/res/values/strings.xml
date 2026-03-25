@@ -1,0 +1,20 @@
+<resources>
+    <string name="app_name">Note Organizer</string>
+    <string name="notes_title">Notes</string>
+    <string name="search_hint">Search notes…</string>
+    <string name="new_note">New note</string>
+
+    <string name="title_hint">Title</string>
+    <string name="content_hint">Content</string>
+
+    <string name="save">Save</string>
+    <string name="delete">Delete</string>
+
+    <string name="sync">Sync</string>
+    <string name="empty_state">No notes yet. Tap + to create one.</string>
+    <string name="meta_placeholder"> </string>
+
+    <string name="sync_status_running">Syncing…</string>
+    <string name="sync_status_success">Last synced: %1$s</string>
+    <string name="sync_status_error">Sync failed: %1$s</string>
+</resources>
