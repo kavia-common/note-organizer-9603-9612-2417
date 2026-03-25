@@ -11,7 +11,6 @@ This repository contains a native Android (Kotlin) offline-first notes app skele
 ## Project layout
 
 - `android-app/` — Android Gradle project (the app)
-- `notes_frontend/` — legacy Flutter project (kept for history; no longer used)
 
 ## Build & test
 
