@@ -1,4 +1,4 @@
 {
-    "command": "flutter pub get",
-    "working_directory": "/home/kavia/workspace/code-generation/note-organizer-9603-9612-2417/notes_frontend"
+    "command": "./gradlew dependencies",
+    "working_directory": "/home/kavia/workspace/code-generation/note-organizer-9603-9612-2417/android-app"
 }
